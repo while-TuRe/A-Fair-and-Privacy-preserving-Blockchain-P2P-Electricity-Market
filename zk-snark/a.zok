@@ -1,0 +1,91 @@
+import "hashes/sha256/512bitPacked" as sha256;    //def main(field[4] preimage) -> field[2]
+
+import "utils/casts/u64_to_field" as u64_to_field;  //def main(u64 i) -> field 
+struct Quote {
+    field[2] address;
+    u64 price;
+    u64 quantity;
+}
+struct Commit{
+    field[2] address;
+    field[2] hash; //(price,quantity,is_bid)
+}
+
+
+// convert
+def u64_to_field4(u64 a) -> field[4] {
+    field[4] mut result = [0;4];
+    result[3] = u64_to_field(a);
+   
+    return result;
+}
+
+def check_commit_existence(Quote[5] quote, Commit[10] commits,bool is_bid, bool[10] mut existence)->bool[10]{
+    field[4] mut field4 = [0;4];
+    field[2] mut hash_target = [0;2];
+    for u32 i in 0..5 {
+        field4[0] = u64_to_field(quote[i].price);
+        field4[1] = u64_to_field(quote[i].quantity);
+        field4[2] = is_bid ? 1 : 0;
+        hash_target = sha256(field4);
+        log("i {}, Quote {},{},{} {}; Field4 {} ; hash_target {}", i, quote[i].address, quote[i].price, quote[i].quantity,is_bid,field4, hash_target);
+
+        bool mut is_contained = false; // if hash_target exists in commits
+        bool mut match_tmp=false;
+        for u32 j in 0..10 {
+            match_tmp = (commits[j].address == quote[i].address && commits[j].hash == hash_target);
+            is_contained = is_contained ? true : match_tmp;
+            // if matched, no exsistence before. No duplicated record should be provide
+            assert(match_tmp == false || existence[j] ==  false);
+            // update those exsistence bits with value `false`;  
+            existence[j] = existence[j] ? true : match_tmp;
+        }
+        assert(quote[i].price == 0 || is_contained);
+    }
+    return existence;
+}
+
+def get_tradable_volume(u64 marginal_price, Quote[5] bids, Quote[5] offers)->u64{
+    u64 mut demand=0;
+    u64 mut supply=0;
+    for u32 i in 1..6 {
+        demand = bids[5-i].price >= marginal_price ? demand+bids[5-i].quantity : demand;
+    }
+    for u32 i in 0..5 {
+        supply = offers[i].price <= marginal_price ? supply+offers[i].quantity : supply;
+    }
+    log("demand {}, supply {}",demand,supply);
+    return demand<supply?demand:supply;
+}
+
+def main(u64 marginal_price, private Quote[5] bids, private Quote[5] offers, Commit[10] commits) {
+    // check the order
+    for u32 i in 1..5 {
+        assert(bids[i].price == 0 || bids[i].price>=bids[i-1].price);
+        assert(offers[i].price == 0 || offers[i].price>=offers[i-1].price); 
+    }
+    bool[10] mut existence = [false;10];
+    existence = check_commit_existence(bids,commits,true,existence);
+    existence = check_commit_existence(offers,commits,false,existence);
+    // all records in commits should be provided
+    for u32 i in 0..10{
+        assert(commits[i].hash ==[0,0] || existence[i]==true);
+    }
+    u64 mut bigger_price=0;
+    u64 mut smaller_price=0;
+     for u32 i in 1..5 {
+        log("p {}, bigger_price {} ",offers[5-i].price,bigger_price);
+        bigger_price = offers[5-i].price==0 || offers[5-i].price <= marginal_price ? bigger_price : offers[5-i].price;
+    }
+    for u32 i in 0..5 {
+        log("p {}, smaller_price {} ",offers[i].price,smaller_price);
+        smaller_price = offers[i].price==0 || offers[i].price >= marginal_price ?  smaller_price : offers[i].price;
+    }
+    log("bigger_price {}, smaller_price {}",bigger_price,smaller_price);
+    u64 standand_quantity = get_tradable_volume(marginal_price,bids,offers);
+    u64 bigger_quantity = get_tradable_volume(bigger_price,bids,offers);
+    u64 smaller_quantity = get_tradable_volume(smaller_price,bids,offers);
+    assert(standand_quantity > bigger_quantity);
+    assert(standand_quantity > smaller_quantity);
+    return;    
+}

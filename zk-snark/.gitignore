@@ -1,0 +1,6 @@
+out*
+abi.json
+proof.json
+*.key
+witness
+verifier.sol

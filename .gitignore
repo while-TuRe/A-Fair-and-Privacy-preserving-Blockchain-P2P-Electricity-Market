@@ -1,0 +1,32 @@
+.idea
+.idea/
+**/venv
+**/build
+**/build
+**/build/**
+KraGToken/build/**
+/__pycache__/
+__pycache__
+*__pycache__*
+*artifacts*
+node_modules
+.env
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337
+
+package.json
+package-lock.json
+test-zk/
